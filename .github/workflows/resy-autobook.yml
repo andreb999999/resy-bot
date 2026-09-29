@@ -1,14 +1,22 @@
 name: Resy auto-book
 
 # GitHub Actions hard-caps every job at 6 hours, so "run forever" isn't
-# literally possible. Instead we run resy.py's own --every loop for ~4h50m
-# at a time and restart a fresh run every 5 hours, so coverage is continuous
-# except for a small gap around each restart.
+# literally possible. Instead each run loops resy.py's own --every check for
+# up to ~4h35m. The schedule fires hourly; while a run is going, the next one
+# waits in the queue (only the newest waiting run is kept) and starts as soon
+# as the current one ends, so daytime coverage is close to continuous.
+#
+# Night: scheduled runs don't scan from midnight to 7am New York time. A run
+# that starts at night exits right away, and a scheduled run stops at midnight.
+# The cron hours cover 7am-midnight in both EDT and EST; the New York-time
+# check below handles the daylight-saving shift.
+#
 # Besides the schedule and the Actions tab, pushing a change to
 # .github/triggers/scan.txt starts a run (with the default days/every).
+# Runs started that way or from the Actions tab ignore the night rule.
 on:
   schedule:
-    - cron: "0 */5 * * *"   # every 5 hours, UTC
+    - cron: "0 0-5,11-23 * * *"   # hourly, UTC, except 06:00-10:00 UTC
   push:
     branches: [main]
     paths: [".github/triggers/scan.txt"]
@@ -39,16 +47,29 @@ jobs:
       ALERT_SMTP_PASSWORD: ${{ secrets.ALERT_SMTP_PASSWORD }}
       ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
     steps:
+      - name: Skip the night (midnight-7am New York time)
+        id: window
+        if: github.event_name == 'schedule'
+        run: |
+          if [ "$(TZ=America/New_York date +%-H)" -lt 7 ]; then
+            echo "It's $(TZ=America/New_York date +%H:%M) in New York - not scanning at night."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.window.outputs.skip != 'true'
 
       - uses: actions/setup-python@v5
+        if: steps.window.outputs.skip != 'true'
         with:
           python-version: "3.12"
 
       - name: Install dependencies
+        if: steps.window.outputs.skip != 'true'
         run: pip install -r requirements.txt
 
       - name: Log in to Resy
+        if: steps.window.outputs.skip != 'true'
         env:
           RESY_TOKEN: ${{ secrets.RESY_TOKEN }}
         run: |
@@ -56,20 +77,29 @@ jobs:
           python resy.py login --token "$TOKEN"
 
       # Loops on its own (--every) until it books one slot that fits
-      # resy_config.toml's hours/money rules, or this step's timeout hits.
-      # continue-on-error so a timeout doesn't skip the commit step below.
+      # resy_config.toml's hours/money rules, or its time is up.
+      # continue-on-error so running out of time doesn't skip the commit step below.
       - name: Scan and auto-book
+        if: steps.window.outputs.skip != 'true'
         continue-on-error: true
         timeout-minutes: 280
+        env:
+          EVENT: ${{ github.event_name }}
         run: |
-          python resy.py scan \
+          mins=275
+          if [ "$EVENT" = "schedule" ]; then
+            left=$(( ($(TZ=America/New_York date -d 'tomorrow 00:00' +%s) - $(date +%s)) / 60 ))
+            [ "$left" -lt "$mins" ] && mins=$left
+          fi
+          echo "Scanning for up to $mins minutes."
+          timeout -s INT "${mins}m" python resy.py scan \
             --days "${{ github.event.inputs.days || '30' }}" \
             --every "${{ github.event.inputs.every || '30' }}" \
             --book --yes \
             --log resy_openings.csv
 
       - name: Save booking state and opening log back to the repo
-        if: always()
+        if: always() && steps.window.outputs.skip != 'true'
         run: |
           git config user.name "resy-bot"
           git config user.email "actions@users.noreply.github.com"
