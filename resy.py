@@ -695,7 +695,7 @@ def cmd_login(a):
                      "  python resy.py login --token <token>")
         c.user()
     save_auth(c, email)
-    print(f"Logged in as {email}. Token saved to {AUTH_FILE}")
+    print(f"Logged in. Token saved to {AUTH_FILE}")
     print(f"Payment method on file: {c.payment_method_id or 'none found'}")
 
 
