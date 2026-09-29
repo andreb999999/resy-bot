@@ -29,3 +29,12 @@ jobs:
         env:
           RESY_TOKEN: ${{ secrets.RESY_TOKEN }}
         run: python .github/scripts/resy_diag.py
+
+      # A few real scan checks back to back, without --book, to see whether
+      # errors start only after repeated checks.
+      - name: Real scan for ~2.5 minutes (no booking)
+        env:
+          RESY_TOKEN: ${{ secrets.RESY_TOKEN }}
+        run: |
+          python resy.py login --token "$(printf '%s' "$RESY_TOKEN" | tr -d '[:space:]')" > /dev/null
+          timeout -s INT 150 python resy.py scan --days 30 --every 30 || true
