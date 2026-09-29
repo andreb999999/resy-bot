@@ -1,19 +1,20 @@
 name: Resy auto-book
 
-# GitHub Actions hard-caps every job at 6 hours, so "run forever" isn't
-# literally possible. Instead each run loops resy.py's own --every check for
-# up to ~4h35m. The schedule fires hourly; while a run is going, the next one
-# waits in the queue (only the newest waiting run is kept) and starts as soon
-# as the current one ends, so daytime coverage is close to continuous.
+# Scans in 15-minute blocks, so each block's log can be read soon after it
+# ends. When a block runs its full 15 minutes, it starts the next block itself
+# (GitHub's schedule is too unreliable to start runs every 15 minutes). The
+# chain stops when a block ends early (a booking, an expired token, a crash),
+# when a run is cancelled, or at night. The hourly schedule restarts it.
 #
-# Night: scheduled runs don't scan from midnight to 7am New York time. A run
-# that starts at night exits right away, and a scheduled run stops at midnight.
-# The cron hours cover 7am-midnight in both EDT and EST; the New York-time
-# check below handles the daylight-saving shift.
+# Night: no scanning from midnight to 7am New York time for scheduled and
+# chained blocks. A block that starts at night exits right away and doesn't
+# start another; a block running up to midnight stops at midnight. The cron
+# hours cover 7am-midnight in both EDT and EST; the New York-time check below
+# handles the daylight-saving shift.
 #
 # Besides the schedule and the Actions tab, pushing a change to
-# .github/triggers/scan.txt starts a run (with the default days/every).
-# Runs started that way or from the Actions tab ignore the night rule.
+# .github/triggers/scan.txt starts a block (and the chain after it). Blocks
+# started that way or from the Actions tab ignore the night rule themselves.
 on:
   schedule:
     # hourly at :17 (GitHub often drops runs scheduled on the hour), UTC, except 06-10 UTC
@@ -29,22 +30,29 @@ on:
       every:
         description: "Seconds between checks"
         default: "30"
+      chain:
+        description: "Set by the previous block when it starts this one; leave as false"
+        default: "false"
 
+# One block at a time; a newly queued block waits for the running one, and
+# only the newest waiting block is kept.
 concurrency:
   group: resy-autobook
   cancel-in-progress: false
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   watch-and-book:
     runs-on: ubuntu-latest
-    timeout-minutes: 290
+    timeout-minutes: 25
     env:
       # Write each line to the log right away; otherwise a cancelled run loses
       # everything the scan printed.
       PYTHONUNBUFFERED: "1"
+      NIGHT_RULE: ${{ github.event_name == 'schedule' || github.event.inputs.chain == 'true' }}
       # Optional: lets resy.py email you if your token expires (HTTP 401/419).
       # Leave the secrets unset and it just skips sending, no error.
       ALERT_SMTP_USER: ${{ secrets.ALERT_SMTP_USER }}
@@ -53,7 +61,7 @@ jobs:
     steps:
       - name: Skip the night (midnight-7am New York time)
         id: window
-        if: github.event_name == 'schedule'
+        if: env.NIGHT_RULE == 'true'
         run: |
           if [ "$(TZ=America/New_York date +%-H)" -lt 7 ]; then
             echo "It's $(TZ=America/New_York date +%H:%M) in New York - not scanning at night."
@@ -81,26 +89,30 @@ jobs:
           python resy.py login --token "$TOKEN"
 
       # Loops on its own (--every) until it books one slot that fits
-      # resy_config.toml's hours/money rules, or its time is up.
-      # continue-on-error so running out of time doesn't skip the commit step below.
-      - name: Scan and auto-book
+      # resy_config.toml's hours/money rules, or the 15 minutes are up.
+      # Exit code 124 = ran the full block, which is what lets the next block start.
+      # continue-on-error so running out of time doesn't skip the steps below.
+      - name: Scan and auto-book (15 minutes)
+        id: scan
         if: steps.window.outputs.skip != 'true'
         continue-on-error: true
-        timeout-minutes: 280
-        env:
-          EVENT: ${{ github.event_name }}
+        timeout-minutes: 20
         run: |
-          mins=275
-          if [ "$EVENT" = "schedule" ]; then
+          mins=15
+          if [ "$NIGHT_RULE" = "true" ]; then
             left=$(( ($(TZ=America/New_York date -d 'tomorrow 00:00' +%s) - $(date +%s)) / 60 ))
             [ "$left" -lt "$mins" ] && mins=$left
+            [ "$mins" -lt 1 ] && mins=1
           fi
           echo "Scanning for up to $mins minutes."
+          rc=0
           timeout -s INT "${mins}m" python resy.py scan \
             --days "${{ github.event.inputs.days || '30' }}" \
             --every "${{ github.event.inputs.every || '30' }}" \
             --book --yes \
-            --log resy_openings.csv
+            --log resy_openings.csv || rc=$?
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          exit $rc
 
       - name: Save booking state and opening log back to the repo
         if: always() && steps.window.outputs.skip != 'true'
@@ -115,3 +127,13 @@ jobs:
             git pull --rebase --autostash
             git push
           fi
+
+      - name: Start the next 15-minute block
+        if: ${{ !cancelled() && steps.scan.outputs.rc == '124' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DAYS: ${{ github.event.inputs.days || '30' }}
+          EVERY: ${{ github.event.inputs.every || '30' }}
+        run: |
+          gh workflow run resy-autobook.yml --repo "$GITHUB_REPOSITORY" --ref main \
+            -f days="$DAYS" -f every="$EVERY" -f chain=true
