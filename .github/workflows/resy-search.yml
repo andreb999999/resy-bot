@@ -2,12 +2,17 @@ name: Resy search
 
 # Look up a restaurant's venue id without needing local network/API access -
 # runs resy.py search using the same RESY_TOKEN secret as the auto-book workflow.
+# Run it from the Actions tab, or by pushing a change to
+# .github/triggers/search.txt (first line = the restaurant name).
 on:
   workflow_dispatch:
     inputs:
       query:
         description: "Restaurant name to search for"
         required: true
+  push:
+    branches: [main]
+    paths: [".github/triggers/search.txt"]
 
 jobs:
   search:
@@ -34,6 +39,7 @@ jobs:
         env:
           QUERY: ${{ github.event.inputs.query }}
         run: |
+          [ -n "$QUERY" ] || QUERY=$(head -n 1 .github/triggers/search.txt)
           echo "### Results for \"$QUERY\"" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           python resy.py search "$QUERY" | tee -a "$GITHUB_STEP_SUMMARY"

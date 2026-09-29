@@ -4,9 +4,14 @@ name: Resy auto-book
 # literally possible. Instead we run resy.py's own --every loop for ~4h50m
 # at a time and restart a fresh run every 5 hours, so coverage is continuous
 # except for a small gap around each restart.
+# Besides the schedule and the Actions tab, pushing a change to
+# .github/triggers/scan.txt starts a run (with the default days/every).
 on:
   schedule:
     - cron: "0 */5 * * *"   # every 5 hours, UTC
+  push:
+    branches: [main]
+    paths: [".github/triggers/scan.txt"]
   workflow_dispatch:
     inputs:
       days:
