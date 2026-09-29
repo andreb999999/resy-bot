@@ -60,8 +60,10 @@ import json
 import os
 import random
 import re
+import smtplib
 import sys
 import time
+from email.message import EmailMessage
 from pathlib import Path
 
 import requests
@@ -74,6 +76,8 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
 NYC = (40.7128, -74.0060)
 JITTER = 20            # seconds added/removed at random to each --every / watch wait
+COOLDOWN_EVERY = 15    # every this many checks, take a longer breather instead...
+COOLDOWN_SECONDS = 300 # ...of this many seconds (5 full minutes)
 DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 DEFAULT_CONFIG = Path(__file__).resolve().with_name("resy_config.toml")
 
@@ -287,6 +291,10 @@ def targets(client: Resy, cfg: dict, venue_arg: str | None) -> list[dict]:
 # successful booking, so later runs won't book again until you delete it (or cancel that
 # reservation with `python resy.py cancel`, which removes it).
 LOCK_FILE = Path(os.environ.get("RESY_LOCK_FILE", Path(__file__).resolve().with_name("resy_booked.json")))
+# reservation_id / resy_token for the current booking, kept out of LOCK_FILE: the
+# GitHub Actions workflow commits LOCK_FILE back to the (public) repo, and a specific
+# reservation's identifiers don't belong in public git history.
+PRIVATE_LOCK_FILE = Path(__file__).resolve().with_name("resy_booked_private.json")
 
 
 class AlreadyBooked(Exception):
@@ -465,8 +473,13 @@ def safe_book(c: Resy, venue: dict, slot: dict, day: str, party: int, cfg: dict,
         "status": "booked", "venue": venue["name"], "venue_id": venue["id"], "day": day,
         "time": slot["time"], "type": slot["type"], "party": party,
         "prepay": terms["prepay"], "cancel_fee": terms["cancel_fee"], "policy": terms["policy"],
-        "reservation_id": res.get("reservation_id"), "resy_token": res.get("resy_token"),
         "booked_at": dt.datetime.now().isoformat(timespec="seconds")}, indent=2))
+    PRIVATE_LOCK_FILE.write_text(json.dumps({
+        "reservation_id": res.get("reservation_id"), "resy_token": res.get("resy_token")}, indent=2))
+    try:
+        os.chmod(PRIVATE_LOCK_FILE, 0o600)
+    except OSError:
+        pass
     _save_details(det)
     return res, terms
 
@@ -637,6 +650,32 @@ def ts():
     return dt.datetime.now().strftime("%H:%M:%S.%f")[:-3]
 
 
+def send_alert_email(subject: str, body: str) -> None:
+    """Best-effort email alert (e.g. for an expired token). Configured via env vars
+    ALERT_SMTP_USER / ALERT_SMTP_PASSWORD / ALERT_EMAIL_TO; does nothing if unset."""
+    user = os.environ.get("ALERT_SMTP_USER")
+    password = os.environ.get("ALERT_SMTP_PASSWORD")
+    to_addr = os.environ.get("ALERT_EMAIL_TO")
+    if not (user and password and to_addr):
+        print(f"[{ts()}] (email alert skipped - ALERT_SMTP_USER/ALERT_SMTP_PASSWORD/"
+              f"ALERT_EMAIL_TO not set)")
+        return
+    host = os.environ.get("ALERT_SMTP_HOST", "smtp.gmail.com")
+    port = int(os.environ.get("ALERT_SMTP_PORT", "465"))
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = user
+    msg["To"] = to_addr
+    msg.set_content(body)
+    try:
+        with smtplib.SMTP_SSL(host, port, timeout=15) as s:
+            s.login(user, password)
+            s.send_message(msg)
+        print(f"[{ts()}] alert email sent to {to_addr}")
+    except Exception as e:
+        print(f"[{ts()}] couldn't send alert email: {e}")
+
+
 # --------------------------------------------------------------------------- commands
 def cmd_login(a):
     c = Resy()
@@ -769,9 +808,15 @@ def cmd_reservations(a):
 def cmd_cancel(a):
     c = load_client()
     print(json.dumps(c.cancel(a.resy_token), indent=2)[:500])
-    info = lock_info()
-    if info and info.get("resy_token") == a.resy_token:
+    private = {}
+    if PRIVATE_LOCK_FILE.exists():
+        try:
+            private = json.loads(PRIVATE_LOCK_FILE.read_text() or "{}")
+        except Exception:
+            pass
+    if lock_info() and private.get("resy_token") == a.resy_token:
         LOCK_FILE.unlink(missing_ok=True)
+        PRIVATE_LOCK_FILE.unlink(missing_ok=True)
         print(f"Removed {LOCK_FILE.name} - the watcher is free to book again.")
 
 
@@ -978,14 +1023,18 @@ def cmd_scan(a):
                         break
                     continue
                 print(f"[{ts()}] BOOKED {v['name']} {d} {s['time']} ({s['type']}) for {party} - "
-                      f"{terms_text(t)} - reservation {res.get('reservation_id')}. Stopping; "
-                      f"no more bookings until you cancel it or delete {LOCK_FILE.name}.")
+                      f"{terms_text(t)}. Stopping; no more bookings until you cancel it or "
+                      f"delete {LOCK_FILE.name}. (resy_token saved to "
+                      f"{PRIVATE_LOCK_FILE.name}, not committed to the repo)")
                 return
         if a.every is None:
             return
         took = time.time() - round_start
-        # random wait around the pivot: 30s -> anywhere from 10s to 50s
-        wait = max(1.0, a.every + random.uniform(-JITTER, JITTER))
+        if rnd % COOLDOWN_EVERY == 0:
+            wait = COOLDOWN_SECONDS         # every 15th check: a longer breather
+        else:
+            # random wait around the pivot: 30s -> anywhere from 10s to 50s
+            wait = max(1.0, a.every + random.uniform(-JITTER, JITTER))
         print(f"[{ts()}] check #{rnd} done in {took:.1f}s - {len(venues)} restaurant(s), "
               f"{days_checked} day(s) with tables looked at, {len(matches)} fit your rules "
               f"({len(new)} new)" + (f", {errors} error(s)" if errors else "")
@@ -1095,8 +1144,9 @@ def cmd_snipe(a):
                         break
                     continue
                 print(f"[{ts()}] BOOKED {v['name']} {a.day} {s['time']} ({s['type']}) for {party} - "
-                      f"{terms_text(t)} - reservation {res.get('reservation_id')}. Stopping; "
-                      f"no more bookings until you cancel it or delete {LOCK_FILE.name}.")
+                      f"{terms_text(t)}. Stopping; no more bookings until you cancel it or "
+                      f"delete {LOCK_FILE.name}. (resy_token saved to "
+                      f"{PRIVATE_LOCK_FILE.name}, not committed to the repo)")
                 return
         if not found_any:
             if polls % 20 == 0:
@@ -1185,6 +1235,12 @@ def main():
         sys.exit(str(e))
     except ResyError as e:
         if e.status in (401, 419):
+            send_alert_email(
+                "Resy bot: your auth token expired",
+                f"resy.py got HTTP {e.status} calling the Resy API - your saved token "
+                f"looks expired or invalid.\n\nRun `python resy.py login` (paste a fresh "
+                f"token from resy.com) to fix it.\n\nDetails: {e}",
+            )
             sys.exit(f"Auth problem ({e.status}) - token expired? Run: python resy.py login")
         sys.exit(str(e))
 

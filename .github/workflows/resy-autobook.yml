@@ -27,6 +27,12 @@ jobs:
   watch-and-book:
     runs-on: ubuntu-latest
     timeout-minutes: 290
+    env:
+      # Optional: lets resy.py email you if your token expires (HTTP 401/419).
+      # Leave the secrets unset and it just skips sending, no error.
+      ALERT_SMTP_USER: ${{ secrets.ALERT_SMTP_USER }}
+      ALERT_SMTP_PASSWORD: ${{ secrets.ALERT_SMTP_PASSWORD }}
+      ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
     steps:
       - uses: actions/checkout@v4
 

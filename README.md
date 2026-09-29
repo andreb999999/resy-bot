@@ -32,6 +32,21 @@ fits your rules, same as running `scan --book` locally.
    can also trigger it manually from the **Actions** tab
    (`Resy auto-book` -> **Run workflow**).
 
+### Optional: get an email when your token expires
+
+Resy tokens eventually expire; when the script gets an auth error (HTTP 401
+or 419) from any command, it tries to send you an email before exiting.
+It's off by default - to turn it on, add three more repository secrets:
+
+- `ALERT_SMTP_USER` - a Gmail address to send *from*.
+- `ALERT_SMTP_PASSWORD` - an **app password** for that account (not your
+  normal Gmail password - create one at
+  [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords),
+  requires 2-Step Verification to be on).
+- `ALERT_EMAIL_TO` - the address to send *to* (can be the same address).
+
+Leave any of them unset and the script just skips sending, no error.
+
 ### How it stays running "all the time"
 
 GitHub Actions kills any job after 6 hours, so a single run can't loop
@@ -47,12 +62,25 @@ runners.
 Disable the workflow from the **Actions** tab (**...** -> **Disable
 workflow**), or delete the `schedule:` block in the workflow file.
 
+### Checking frequency
+
+`scan --every` normally re-checks every ~30s (jittered). Every 15th check it
+takes a longer breather - 5 full minutes - before continuing, to ease off
+the API a bit. Both numbers are constants (`COOLDOWN_EVERY`,
+`COOLDOWN_SECONDS`) near the top of `resy.py`.
+
 ### Notes / limitations
 
 - This repo is **public**. `resy_config.toml` (your restaurant list, hours,
   and money limits) and the booking/opening logs will be visible to anyone.
   Nothing secret is committed - the auth token only ever lives in an
   encrypted Actions secret and the ephemeral runner's `~/.resy_auth.json`.
+  The reservation's `resy_token` / `reservation_id` are deliberately kept out
+  of `resy_booked.json` (the file that gets committed) and out of the
+  `BOOKED ...` log line - they're written only to a local, gitignored
+  `resy_booked_private.json`, which does **not** persist across GitHub
+  Actions runs (only your local copy of the repo keeps it, if you ever book
+  from there).
 - GitHub disables scheduled workflows automatically after 60 days with no
   repository activity (commits/pushes). As long as the bot books something
   or logs an opening periodically, that resets the clock - but if it goes
