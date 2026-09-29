@@ -1,0 +1,40 @@
+name: Resy search
+
+# Look up a restaurant's venue id without needing local network/API access -
+# runs resy.py search using the same RESY_TOKEN secret as the auto-book workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      query:
+        description: "Restaurant name to search for"
+        required: true
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Log in to Resy
+        env:
+          RESY_TOKEN: ${{ secrets.RESY_TOKEN }}
+        run: |
+          TOKEN=$(printf '%s' "$RESY_TOKEN" | tr -d '[:space:]')
+          python resy.py login --token "$TOKEN"
+
+      - name: Search
+        env:
+          QUERY: ${{ github.event.inputs.query }}
+        run: |
+          echo "### Results for \"$QUERY\"" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          python resy.py search "$QUERY" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
