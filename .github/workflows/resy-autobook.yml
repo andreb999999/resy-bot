@@ -38,7 +38,11 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Log in to Resy
-        run: python resy.py login --token "${{ secrets.RESY_TOKEN }}"
+        env:
+          RESY_TOKEN: ${{ secrets.RESY_TOKEN }}
+        run: |
+          TOKEN=$(printf '%s' "$RESY_TOKEN" | tr -d '[:space:]')
+          python resy.py login --token "$TOKEN"
 
       # Loops on its own (--every) until it books one slot that fits
       # resy_config.toml's hours/money rules, or this step's timeout hits.
