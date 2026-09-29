@@ -41,6 +41,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 290
     env:
+      # Write each line to the log right away; otherwise a cancelled run loses
+      # everything the scan printed.
+      PYTHONUNBUFFERED: "1"
       # Optional: lets resy.py email you if your token expires (HTTP 401/419).
       # Leave the secrets unset and it just skips sending, no error.
       ALERT_SMTP_USER: ${{ secrets.ALERT_SMTP_USER }}
