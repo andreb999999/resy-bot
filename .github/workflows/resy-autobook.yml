@@ -16,7 +16,8 @@ name: Resy auto-book
 # Runs started that way or from the Actions tab ignore the night rule.
 on:
   schedule:
-    - cron: "0 0-5,11-23 * * *"   # hourly, UTC, except 06:00-10:00 UTC
+    # hourly at :17 (GitHub often drops runs scheduled on the hour), UTC, except 06-10 UTC
+    - cron: "17 0-5,11-23 * * *"
   push:
     branches: [main]
     paths: [".github/triggers/scan.txt"]

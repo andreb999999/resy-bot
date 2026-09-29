@@ -1,0 +1,31 @@
+name: Resy diagnose
+
+# Sends a few test availability requests to Resy and logs what comes back.
+# Never books. Run it from the Actions tab, or by pushing a change to
+# .github/triggers/diag.txt.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/triggers/diag.txt"]
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Test Resy availability requests
+        env:
+          RESY_TOKEN: ${{ secrets.RESY_TOKEN }}
+        run: python .github/scripts/resy_diag.py
