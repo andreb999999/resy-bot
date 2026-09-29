@@ -78,6 +78,7 @@ NYC = (40.7128, -74.0060)
 JITTER = 20            # seconds added/removed at random to each --every / watch wait
 COOLDOWN_EVERY = 15    # every this many checks, take a longer breather instead...
 COOLDOWN_SECONDS = 300 # ...of this many seconds (5 full minutes)
+BLOCKED_STOP = 2       # stop repeating after this many checks in a row where every lookup failed
 DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 DEFAULT_CONFIG = Path(__file__).resolve().with_name("resy_config.toml")
 
@@ -900,7 +901,7 @@ def cmd_scan(a):
           + (f"\nWatching every {max(1, a.every - JITTER):g}-{a.every + JITTER:g}s (random), NOT booking; openings go to {log}" if log and not a.book else "")
           + ("\nCtrl+C to stop." if a.every else ""))
 
-    seen, skipped, rnd = set(), set(), 0
+    seen, skipped, rnd, failed_checks = set(), set(), 0, 0
     open_since: dict = {}           # key -> (first seen, match)   for --log
     terms_cache: dict = {}
     while True:
@@ -1039,6 +1040,12 @@ def cmd_scan(a):
               f"{days_checked} day(s) with tables looked at, {len(matches)} fit your rules "
               f"({len(new)} new)" + (f", {errors} error(s)" if errors else "")
               + f". Next check in {wait:.0f}s.")
+        # Resy's bot protection blocks a machine that asks too often, and every lookup then
+        # fails for hours; retrying only prolongs it.
+        failed_checks = failed_checks + 1 if days_checked and errors == days_checked else 0
+        if failed_checks >= BLOCKED_STOP:
+            sys.exit(f"[{ts()}] Every lookup failed in {BLOCKED_STOP} checks in a row - Resy is "
+                     f"probably blocking this machine for asking too often. Stopping.")
         time.sleep(wait)
 
 

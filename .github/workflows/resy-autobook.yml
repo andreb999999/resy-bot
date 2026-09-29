@@ -28,8 +28,8 @@ on:
         description: "How many days ahead to scan"
         default: "30"
       every:
-        description: "Seconds between checks"
-        default: "30"
+        description: "Seconds between checks (Resy blocks a machine that asks much more often)"
+        default: "180"
       chain:
         description: "Set by the previous block when it starts this one; leave as false"
         default: "false"
@@ -89,7 +89,9 @@ jobs:
           python resy.py login --token "$TOKEN"
 
       # Loops on its own (--every) until it books one slot that fits
-      # resy_config.toml's hours/money rules, or the 15 minutes are up.
+      # resy_config.toml's hours/money rules, or the 15 minutes are up. It stops
+      # early if Resy starts refusing every request (see BLOCKED_STOP in resy.py),
+      # and then no next block starts.
       # Exit code 124 = ran the full block, which is what lets the next block start.
       # continue-on-error so running out of time doesn't skip the steps below.
       - name: Scan and auto-book (15 minutes)
@@ -108,7 +110,7 @@ jobs:
           rc=0
           timeout -s INT "${mins}m" python resy.py scan \
             --days "${{ github.event.inputs.days || '30' }}" \
-            --every "${{ github.event.inputs.every || '30' }}" \
+            --every "${{ github.event.inputs.every || '180' }}" \
             --book --yes \
             --log resy_openings.csv || rc=$?
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
@@ -133,7 +135,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           DAYS: ${{ github.event.inputs.days || '30' }}
-          EVERY: ${{ github.event.inputs.every || '30' }}
+          EVERY: ${{ github.event.inputs.every || '180' }}
         run: |
           gh workflow run resy-autobook.yml --repo "$GITHUB_REPOSITORY" --ref main \
             -f days="$DAYS" -f every="$EVERY" -f chain=true
