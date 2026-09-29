@@ -1,0 +1,21 @@
+name: Resy stop
+
+# Cancels a running "Resy auto-book" run: joining its concurrency group with
+# cancel-in-progress makes GitHub cancel the run already in that group.
+# Run it from the Actions tab, or by pushing a change to .github/triggers/stop.txt.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/triggers/stop.txt"]
+
+concurrency:
+  group: resy-autobook
+  cancel-in-progress: true
+
+jobs:
+  stop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: echo "Cancelled any running Resy auto-book run."
