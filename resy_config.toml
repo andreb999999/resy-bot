@@ -1,0 +1,75 @@
+# resy_config.toml - when you can go out. Keep it next to resy.py.
+# find / scan / snipe use these hours; --window / --prefer / --party on the
+# command line override them for a single run.
+# (TOML rule: plain settings must come BEFORE the first [section].)
+
+party = 2
+
+# Seating types to accept (a partial match is enough: "dining" matches
+# "Dining Room"). Empty = accept anything, including bar and counter seats.
+#   types = ["dining room", "patio"]
+types = []
+
+# When several restaurants have a table that fits, which wins?
+#   "restaurant" = the one highest in the list below (then the earliest date)
+#   "date"       = the earliest date (list order breaks ties)
+order = "restaurant"
+
+# ---- Money rules (checked before every booking; a table that breaks one is skipped)
+# Up-front charge you'll accept (prepaid menus, deposits), in dollars. 0 = never prepay.
+max_prepay = 50
+# Cancellation / no-show fee you'll accept, in dollars, as Resy states it (usually
+# per person). Delete the line for no limit.
+max_cancel_fee = 100
+
+# ---- Time rule: only book tables at least this many hours from now.
+min_hours_ahead = 25
+
+# ---- watch mode (python resy.py watch): checks, logs, never books
+watch_every = 30                      # seconds between checks
+watch_days = 30                       # how many days ahead to look
+openings_file = "resy_openings.csv"   # opens in Excel; saved next to resy.py
+
+# Refuse to start an automatic booking run if you already have an upcoming
+# reservation at any restaurant below.
+stop_if_already_reserved = true
+
+# Your restaurants, in priority order (first = favourite).
+# Get ids with:  python resy.py search "restaurant name"
+# Optional per restaurant:  party = 4   (overrides the party above)
+[[restaurants]]
+id = 834
+name = "4 Charles"
+
+[[restaurants]]
+id = 65452
+name = "Tatiana"
+
+[[restaurants]]
+id = 60058
+name = "Monkey bar"
+
+# Hours that work, per day of the week (24h clock, HH:MM-HH:MM).
+# - A slot counts if it STARTS inside one of the windows.
+# - Several windows per day are fine, e.g. lunch and dinner.
+# - A day that's left out, or set to [], is a day you can't go. "18:00-23:30"
+[hours]
+mon = []
+tue = []
+wed = []
+thu = []
+fri = ["18:00-23:30"]
+sat = ["11:00-15:30", "15:30-23:00"]
+sun = ["11:00-15:30", "15:30-23:00"]
+
+# Ideal time per day: when several slots fit, the closest to this wins.
+# Days left out just take the earliest fitting slot.
+# (For one time on every day, delete this section and put  prefer = "19:30"
+#  up top next to party.)
+[prefer]
+tue = "19:30"
+wed = "19:30"
+thu = "19:30"
+fri = "20:00"
+sat = "19:30"
+sun = "19:00"

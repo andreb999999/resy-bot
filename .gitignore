@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+
+# Never commit your auth token
+.resy_auth.json
+
+# Debug scratch file from the last booking attempt - not needed in the repo
+resy_last_details.json
+
+# resy_booked.json (the no-double-booking lock) and resy_openings.csv are
+# intentionally NOT ignored: the GitHub Actions workflow commits them back
+# to the repo so state survives between ephemeral runner restarts.

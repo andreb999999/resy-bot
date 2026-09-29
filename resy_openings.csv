@@ -1,0 +1,23 @@
+event,logged_at,restaurant,venue_id,date,weekday,time,seating,party,hours_away,prepay,cancel_fee,payment_type,within_your_rules,why_not,policy,open_minutes
+opened,2026-09-25T08:12:58,Monkey bar,60058,2026-09-26,sat,13:45,Bar Table,2,29.5,5.01,0.0,prix fixe,no,prepay $5 > max_prepay $0,"Free cancellation with full refund before Sat, Sep. 26 at 9:00am. After that, you may not receive a refund if you cancel.",
+opened,2026-09-25T08:12:58,Monkey bar,60058,2026-09-26,sat,13:30,Bar Table,2,29.3,5.01,0.0,prix fixe,no,prepay $5 > max_prepay $0,"Free cancellation with full refund before Sat, Sep. 26 at 9:00am. After that, you may not receive a refund if you cancel.",
+gone,2026-09-25T08:14:06,Monkey bar,60058,2026-09-26,sat,13:45,Bar Table,2,,,,,,,,1.1
+gone,2026-09-25T08:14:06,Monkey bar,60058,2026-09-26,sat,13:30,Bar Table,2,,,,,,,,1.1
+opened,2026-09-25T20:02:24,Monkey bar,60058,2026-09-27,sun,14:15,Dining Room,2,42.2,4.99,0.0,prix fixe,no,prepay $5 > max_prepay $0,"Free cancellation with full refund before Sun, Sep. 27 at 9:00am. After that, you may not receive a refund if you cancel.",
+opened,2026-09-25T20:02:24,Monkey bar,60058,2026-09-27,sun,14:00,Dining Room,2,42.0,4.99,0.0,prix fixe,no,prepay $5 > max_prepay $0,"Free cancellation with full refund before Sun, Sep. 27 at 9:00am. After that, you may not receive a refund if you cancel.",
+gone,2026-09-25T20:03:22,Monkey bar,60058,2026-09-27,sun,14:15,Dining Room,2,,,,,,,,1.0
+gone,2026-09-25T20:03:22,Monkey bar,60058,2026-09-27,sun,14:00,Dining Room,2,,,,,,,,1.0
+opened,2026-09-25T21:18:14,Monkey bar,60058,2026-09-27,sun,21:00,Dining,2,47.7,4.99,0.0,prix fixe,no,prepay $5 > max_prepay $0,"Free cancellation with full refund before Sat, Sep. 26 at 9:00pm. After that, you may not receive a refund if you cancel.",
+opened,2026-09-25T21:18:14,Monkey bar,60058,2026-09-27,sun,21:15,Dining,2,47.9,4.99,0.0,prix fixe,no,prepay $5 > max_prepay $0,"Free cancellation with full refund before Sat, Sep. 26 at 9:15pm. After that, you may not receive a refund if you cancel.",
+opened,2026-09-25T21:18:14,Monkey bar,60058,2026-09-27,sun,21:30,Dining,2,48.2,4.99,0.0,prix fixe,no,prepay $5 > max_prepay $0,"Free cancellation with full refund before Sat, Sep. 26 at 9:30pm. After that, you may not receive a refund if you cancel.",
+gone,2026-09-25T21:20:00,Monkey bar,60058,2026-09-27,sun,21:00,Dining,2,,,,,,,,1.8
+gone,2026-09-25T21:20:00,Monkey bar,60058,2026-09-27,sun,21:15,Dining,2,,,,,,,,1.8
+gone,2026-09-25T21:20:00,Monkey bar,60058,2026-09-27,sun,21:30,Dining,2,,,,,,,,1.8
+opened,2026-09-27T21:36:06,Tatiana,65452,2026-09-30,wed,21:00,Dining Room,2,71.4,0.0,0.0,free,yes,,"While you won't be charged if you need to cancel, we ask that you do so at least 24 hours in advance.",
+opened,2026-09-27T21:36:06,Tatiana,65452,2026-09-30,wed,21:15,Dining Room,2,71.6,0.0,0.0,free,yes,,"While you won't be charged if you need to cancel, we ask that you do so at least 24 hours in advance.",
+gone,2026-09-27T21:36:43,Tatiana,65452,2026-09-30,wed,21:00,Dining Room,2,,,,,,,,0.6
+gone,2026-09-27T21:36:43,Tatiana,65452,2026-09-30,wed,21:15,Dining Room,2,,,,,,,,0.6
+opened,2026-09-27T21:51:18,Tatiana,65452,2026-09-30,wed,21:00,Dining Room,2,71.1,0.0,0.0,free,yes,,"While you won't be charged if you need to cancel, we ask that you do so at least 24 hours in advance.",
+opened,2026-09-27T21:51:18,Tatiana,65452,2026-09-30,wed,21:15,Dining Room,2,71.4,0.0,0.0,free,yes,,"While you won't be charged if you need to cancel, we ask that you do so at least 24 hours in advance.",
+gone,2026-09-27T21:52:19,Tatiana,65452,2026-09-30,wed,21:00,Dining Room,2,,,,,,,,1.0
+gone,2026-09-27T21:52:19,Tatiana,65452,2026-09-30,wed,21:15,Dining Room,2,,,,,,,,1.0
